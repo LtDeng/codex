@@ -1,32 +1,38 @@
 # Bad UX by Design: Voice-Only Authentication
 
-This project is a proof-of-concept for intentionally hostile user experience in a voice-only authentication system. The design is not broken; it is adversarial by intent. Friction, inconsistency, and failure are deliberate system behaviors.
+## What This Project Is
 
-## Concept
+This project is an intentionally hostile UX proof-of-concept for voice-only authentication. Speech misinterpretation is a feature, not a bug. Interaction is hostile but learnable: users are expected to adapt to the system’s behavior rather than the system adapting to them.
 
-Bad UX by Design treats user input as unreliable and forces the user to adapt. Speech-to-text is intentionally degraded. A local LLM introduces bounded, visible nondeterminism. Misinterpretations are surfaced to the user. The system is hostile but learnable, and authentication is achievable with effort.
+## Design Principles
+
+- Voice-only input
+- No correction, no preview, no forgiveness
+- Visible nondeterminism
+- Bounded inconsistency
+- Machine interpretation over human intent
 
 ## Authentication Pipeline
 
-Audio → STT → Transcript → LLM Mutation → Credential
+Audio
+ → Speech-to-Text (local, unreliable)
+ → Canonical Transcript (visible)
+ → LLM Mutation (visible, bounded)
+ → Credential String (stored and matched exactly)
 
-1. Audio is captured from the microphone.
-2. Local speech-to-text converts audio to a transcript with built-in unreliability.
-3. A local LLM mutates the transcript in small, visible ways.
-4. The mutated output is used as the credential.
+The transcript and the mutated output are shown to the user. Authentication is an exact string match against the stored credential. Users must learn the system’s behavior to succeed.
 
-## Visible Nondeterminism
+## Why This Is Achievable
 
-The system shows its mistakes. Each mutation is displayed, and the user is expected to learn the system’s biases. Nondeterminism is bounded so the system remains learnable, but it is not stable from attempt to attempt.
+This system is painful but solvable because the mutation space is constrained. Mutation budgets cap the number and severity of changes. Transformation classes are limited and enumerated rather than open-ended. Convergence happens through repetition: as users observe the visible transcript and mutation output, they can learn the bounded patterns and stabilize their phrasing to reach a consistent credential.
 
-## Future Extension Points
+## Non-Goals
 
-- Replace stubs with local Whisper-style inference.
-- Add a deterministic mutation baseline for comparison studies.
-- Implement rate-limited retries and lockout behavior.
-- Add configurable mutation classes and severity budgets.
-- Store per-user mutation profiles in SQLite.
+- Accessibility
+- Security hardening
+- Biometric authentication
+- Fair or inclusive UX
 
-## Manifesto
+## Status
 
-This system rejects convenience. It values explicit friction and visible error as a training surface. Users are not guided; they are conditioned. Success is a negotiated outcome with a deliberately unfriendly machine.
+PoC / Experimental. Most modules are stubs by design.
