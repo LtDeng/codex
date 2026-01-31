@@ -8,13 +8,18 @@
   <body>
     <h1>Voice-Only Authentication</h1>
     <p>This system intentionally misinterprets speech.</p>
-    <button id="mic-button" type="button">Start Microphone</button>
+    <p>Clearing browser storage deletes your account.</p>
+    <button id="signup-button" type="button">Sign Up</button>
+    <button id="login-button" type="button">Log In</button>
 
     <h2>Transcript</h2>
     <pre id="transcript" aria-live="polite"></pre>
 
     <h2>Mutated Interpretation</h2>
     <pre id="mutation" aria-live="polite"></pre>
+
+    <h2>Status</h2>
+    <pre id="status" aria-live="polite"></pre>
 
     <script type="module" src="./ui.js"></script>
   </body>
