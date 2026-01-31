@@ -9,6 +9,7 @@
     "test": "node scripts/verify.js"
   },
   "devDependencies": {
-    "eslint": "^9.9.0"
+    "eslint": "^9.9.0",
+    "vite": "^7.3.1"
   }
 }
