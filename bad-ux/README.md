@@ -22,6 +22,14 @@ Audio
 
 The transcript and the mutated output are shown to the user. Authentication is an exact string match against the stored credential. Users must learn the system’s behavior to succeed.
 
+## Interaction Model
+
+- Fields are intentionally non-editable.
+- Voice is the only input channel.
+- Transcription is visible but binding.
+- Mutation is visible but uncontrollable.
+- The interface is rigid by design.
+
 ## Architecture
 
 - Client-only, no backend
@@ -35,6 +43,16 @@ There is no authoritative server. Interpretation happens locally. Failure cannot
 ## LLM in the Browser
 
 WebLLM is used for local inference. Nondeterminism is visible. Mutation rules are disclosed, but outcomes are not guaranteed. The system prompt enforces bounded inconsistency and small edit distance mutations.
+
+## Local Speech Recognition
+
+Whisper WASM runs via transformers.js entirely in the browser. No speech data leaves the device. Errors and misrecognitions are intentional, and the smaller model is selected to increase distortion.
+
+Microphone capture uses MediaRecorder instead of deprecated ScriptProcessorNode APIs. Capture is intentionally clip-based, and real-time streaming is avoided by design.
+
+## Why Small Models
+
+Lower accuracy creates more hostile UX while keeping the distortion bounded. Faster load times keep the PoC usable. Failures are visible, repeatable, and still painful.
 
 ## Storage Model
 

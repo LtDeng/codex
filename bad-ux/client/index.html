@@ -3,24 +3,103 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Bad UX Voice Auth</title>
+    <title>Voice Credential Registration</title>
+    <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <h1>Voice-Only Authentication</h1>
-    <p>This system intentionally misinterprets speech.</p>
-    <p>Clearing browser storage deletes your account.</p>
-    <button id="signup-button" type="button">Sign Up</button>
-    <button id="login-button" type="button">Log In</button>
+    <main class="page">
+      <section class="card" aria-labelledby="card-title">
+        <header class="card-header">
+          <h1 id="card-title">Voice Credential Registration</h1>
+          <p class="card-subtext">
+            Voice input required. Manual editing disabled. System interpretation may vary.
+          </p>
+        </header>
 
-    <h2>Transcript</h2>
-    <pre id="transcript" aria-live="polite"></pre>
+        <form class="form-grid" autocomplete="off">
+          <div class="field" data-field="username">
+            <label for="username">Username</label>
+            <div class="input-row">
+              <input
+                id="username"
+                name="username"
+                type="text"
+                disabled
+                placeholder="Voice input required"
+              />
+              <button type="button" class="voice-button" data-field="username">
+                Voice Input
+              </button>
+            </div>
+            <div class="recording-indicator" id="username-indicator" hidden>
+              <span class="recording-dot" aria-hidden="true"></span>
+              Listening
+            </div>
+            <div class="field-meta" aria-live="polite">
+              <div class="meta-row">
+                <span class="meta-label">Transcript</span>
+                <span class="meta-value" id="username-transcript">...</span>
+              </div>
+              <div class="meta-row">
+                <span class="meta-label">Interpreted</span>
+                <span class="meta-value" id="username-mutation">...</span>
+              </div>
+            </div>
+          </div>
 
-    <h2>Mutated Interpretation</h2>
-    <pre id="mutation" aria-live="polite"></pre>
+          <div class="field" data-field="password">
+            <label for="password">Password</label>
+            <div class="input-row">
+              <input
+                id="password"
+                name="password"
+                type="text"
+                disabled
+                placeholder="Voice input required"
+              />
+              <button type="button" class="voice-button" data-field="password">
+                Voice Input
+              </button>
+            </div>
+            <div class="recording-indicator" id="password-indicator" hidden>
+              <span class="recording-dot" aria-hidden="true"></span>
+              Listening
+            </div>
+            <div class="field-meta" aria-live="polite">
+              <div class="meta-row">
+                <span class="meta-label">Transcript</span>
+                <span class="meta-value" id="password-transcript">...</span>
+              </div>
+              <div class="meta-row">
+                <span class="meta-label">Interpreted</span>
+                <span class="meta-value" id="password-mutation">...</span>
+              </div>
+            </div>
+          </div>
+        </form>
 
-    <h2>Status</h2>
-    <pre id="status" aria-live="polite"></pre>
+        <div class="actions">
+          <button id="signup-button" type="button" class="action-button primary">
+            Create Account
+          </button>
+          <button id="login-button" type="button" class="action-button secondary">Login</button>
+        </div>
 
-    <script type="module" src="./ui.js"></script>
+        <div class="status" id="status" aria-live="polite">
+          Awaiting voice input.
+        </div>
+      </section>
+    </main>
+
+    <script type="importmap">
+      {
+        "imports": {
+          "@xenova/transformers": "https://esm.sh/@xenova/transformers@2.17.2"
+        }
+      }
+    </script>
+    <script type="module">
+      import './ui.js';
+    </script>
   </body>
 </html>
