@@ -48,6 +48,8 @@ WebLLM is used for local inference. Nondeterminism is visible. Mutation rules ar
 
 Whisper WASM runs via transformers.js entirely in the browser. No speech data leaves the device. Errors and misrecognitions are intentional, and the smaller model is selected to increase distortion.
 
+Microphone capture uses MediaRecorder instead of deprecated ScriptProcessorNode APIs. Capture is intentionally clip-based, and real-time streaming is avoided by design.
+
 ## Why Small Models
 
 Lower accuracy creates more hostile UX while keeping the distortion bounded. Faster load times keep the PoC usable. Failures are visible, repeatable, and still painful.

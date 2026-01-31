@@ -1,4 +1,4 @@
-import { startRecording, stopRecording } from './mic.js';
+import { blobToFloat32, startRecording, stopRecording } from './mic.js';
 import { transcribeAudio } from './whisper.js';
 import { login, signup } from './auth.js';
 import { mutateCredential } from './llm.js';
@@ -65,6 +65,7 @@ async function handleVoiceToggle(fieldName) {
 
   if (state.listening && state.activeField === fieldName) {
     setStatus(`Listening stopped for ${fieldName}.`);
+    setState({ activeField: null, listening: false });
     await stopRecording();
     return;
   }
@@ -89,7 +90,13 @@ async function handleVoiceToggle(fieldName) {
   }
 
   setStatus(`Transcribing ${fieldName}.`);
-  const transcript = await transcribeAudio(result.audio, 16000);
+  const float32Audio = await blobToFloat32(result.audio);
+  if (!float32Audio?.length) {
+    setStatus(`No audio captured for ${fieldName}.`);
+    setFieldValues(fieldName, { transcript: '', mutation: '' });
+    return;
+  }
+  const transcript = await transcribeAudio(float32Audio, 16000);
   if (field.token !== token) {
     return;
   }

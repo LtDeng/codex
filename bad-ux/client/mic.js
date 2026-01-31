@@ -1,19 +1,5 @@
-const MIN_DURATION_MS = 900;
-const MAX_DURATION_MS = 7000;
-const SILENCE_TIMEOUT_MS = 1400;
-const SILENCE_THRESHOLD = 0.015;
+const MAX_DURATION_MS = 6000;
 const TARGET_SAMPLE_RATE = 16000;
-
-function flattenChunks(chunks) {
-  const length = chunks.reduce((total, chunk) => total + chunk.length, 0);
-  const buffer = new Float32Array(length);
-  let offset = 0;
-  for (const chunk of chunks) {
-    buffer.set(chunk, offset);
-    offset += chunk.length;
-  }
-  return buffer;
-}
 
 function downsampleTo16k(buffer, inputSampleRate) {
   if (inputSampleRate === TARGET_SAMPLE_RATE) {
@@ -40,14 +26,11 @@ function downsampleTo16k(buffer, inputSampleRate) {
 }
 
 let activeSession = null;
+let lastRecordingBlob = null;
+let recording = false;
 
-function getRms(samples) {
-  let sum = 0;
-  for (let i = 0; i < samples.length; i += 1) {
-    const value = samples[i];
-    sum += value * value;
-  }
-  return Math.sqrt(sum / samples.length);
+function randomInt(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
 async function finalizeSession(session, reason) {
@@ -55,34 +38,32 @@ async function finalizeSession(session, reason) {
     return session.done;
   }
   session.stopped = true;
+  recording = false;
   clearTimeout(session.maxTimeout);
 
-  session.processor.disconnect();
-  session.source.disconnect();
+  if (session.recorder?.state !== 'inactive') {
+    session.recorder.stop();
+  }
   session.stream.getTracks().forEach((track) => track.stop());
+  session.stopReason = reason;
 
-  const { audioContext } = session;
-  const sampleRate = audioContext.sampleRate;
-  await audioContext.close();
-
-  const merged = flattenChunks(session.chunks);
-  const downsampled = merged.length ? downsampleTo16k(merged, sampleRate) : null;
-  const result = { audio: downsampled, reason, fieldName: session.fieldName };
-
-  session.resolve(result);
   activeSession = null;
   return session.done;
 }
 
+function buildResultFromChunks(chunks, reason, fieldName) {
+  const blob = chunks.length ? new Blob(chunks, { type: 'audio/webm' }) : null;
+  lastRecordingBlob = blob;
+  return { audio: blob, reason, fieldName };
+}
+
 export async function startRecording(fieldName) {
-  if (activeSession) {
+  if (recording) {
     await stopRecording();
   }
 
   const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-  const audioContext = new AudioContext();
-  const source = audioContext.createMediaStreamSource(stream);
-  const processor = audioContext.createScriptProcessor(4096, 1, 1);
+  const recorder = new MediaRecorder(stream);
   const chunks = [];
 
   let resolve;
@@ -93,40 +74,30 @@ export async function startRecording(fieldName) {
   const session = {
     fieldName,
     stream,
-    audioContext,
-    source,
-    processor,
+    recorder,
     chunks,
     resolve,
-    done,
     stopped: false,
-    silenceMs: 0,
-    elapsedMs: 0,
+    stopReason: null,
+    done,
     maxTimeout: null
   };
 
-  processor.onaudioprocess = (event) => {
-    const input = event.inputBuffer.getChannelData(0);
-    session.chunks.push(new Float32Array(input));
-    const bufferMs = (input.length / audioContext.sampleRate) * 1000;
-    session.elapsedMs += bufferMs;
-
-    const rms = getRms(input);
-    if (rms < SILENCE_THRESHOLD) {
-      session.silenceMs += bufferMs;
-    } else {
-      session.silenceMs = 0;
+  recorder.addEventListener('dataavailable', (event) => {
+    if (event.data?.size) {
+      chunks.push(event.data);
     }
+  });
 
-    if (session.elapsedMs > MIN_DURATION_MS && session.silenceMs >= SILENCE_TIMEOUT_MS) {
-      finalizeSession(session, 'silence-timeout');
-    }
-  };
+  recorder.addEventListener('stop', () => {
+    resolve(buildResultFromChunks(chunks, session.stopReason ?? 'manual-stop', fieldName));
+  });
 
-  source.connect(processor);
-  processor.connect(audioContext.destination);
+  recorder.start();
+  recording = true;
 
   session.maxTimeout = setTimeout(() => {
+    session.stopReason = 'max-duration';
     finalizeSession(session, 'max-duration');
   }, MAX_DURATION_MS);
 
@@ -138,5 +109,46 @@ export async function stopRecording() {
   if (!activeSession) {
     return null;
   }
+  activeSession.stopReason = 'manual-stop';
   return finalizeSession(activeSession, 'manual-stop');
+}
+
+export function getLastRecordingBlob() {
+  return lastRecordingBlob;
+}
+
+export async function blobToFloat32(blob) {
+  if (!blob) {
+    return null;
+  }
+
+  const arrayBuffer = await blob.arrayBuffer();
+  const audioContext = new AudioContext();
+  const decoded = await audioContext.decodeAudioData(arrayBuffer);
+  const { numberOfChannels, length, sampleRate } = decoded;
+  const mono = new Float32Array(length);
+
+  for (let channel = 0; channel < numberOfChannels; channel += 1) {
+    const data = decoded.getChannelData(channel);
+    for (let i = 0; i < length; i += 1) {
+      mono[i] += data[i] / numberOfChannels;
+    }
+  }
+
+  await audioContext.close();
+
+  const resampled = mono.length ? downsampleTo16k(mono, sampleRate) : new Float32Array();
+  if (!resampled.length) {
+    return resampled;
+  }
+
+  const trimStartMs = randomInt(100, 300);
+  const trimEndMs = randomInt(50, 200);
+  const trimStartSamples = Math.floor((trimStartMs / 1000) * TARGET_SAMPLE_RATE);
+  const trimEndSamples = Math.floor((trimEndMs / 1000) * TARGET_SAMPLE_RATE);
+  const start = Math.min(trimStartSamples, resampled.length);
+  const end = Math.max(resampled.length - trimEndSamples, start);
+
+  // Intentional hostile UX distortion: randomly remove leading/trailing audio.
+  return resampled.slice(start, end);
 }
