@@ -22,6 +22,14 @@ Audio
 
 The transcript and the mutated output are shown to the user. Authentication is an exact string match against the stored credential. Users must learn the system’s behavior to succeed.
 
+## Interaction Model
+
+- Fields are intentionally non-editable.
+- Voice is the only input channel.
+- Transcription is visible but binding.
+- Mutation is visible but uncontrollable.
+- The interface is rigid by design.
+
 ## Architecture
 
 - Client-only, no backend

@@ -1,10 +1,8 @@
-const MIN_DURATION_MS = 3000;
-const MAX_DURATION_MS = 6000;
+const MIN_DURATION_MS = 900;
+const MAX_DURATION_MS = 7000;
+const SILENCE_TIMEOUT_MS = 1400;
+const SILENCE_THRESHOLD = 0.015;
 const TARGET_SAMPLE_RATE = 16000;
-
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 function flattenChunks(chunks) {
   const length = chunks.reduce((total, chunk) => total + chunk.length, 0);
@@ -41,41 +39,104 @@ function downsampleTo16k(buffer, inputSampleRate) {
   return result;
 }
 
-function trimHostileEdges(buffer) {
-  const startTrim = Math.random() < 0.5 ? Math.floor(0.2 * TARGET_SAMPLE_RATE) : 0;
-  const endTrim = Math.random() < 0.5 ? Math.floor(0.15 * TARGET_SAMPLE_RATE) : 0;
-  const start = Math.min(startTrim, buffer.length);
-  const end = Math.max(buffer.length - endTrim, start);
-  return buffer.slice(start, end);
+let activeSession = null;
+
+function getRms(samples) {
+  let sum = 0;
+  for (let i = 0; i < samples.length; i += 1) {
+    const value = samples[i];
+    sum += value * value;
+  }
+  return Math.sqrt(sum / samples.length);
 }
 
-export async function recordClip() {
+async function finalizeSession(session, reason) {
+  if (session.stopped) {
+    return session.done;
+  }
+  session.stopped = true;
+  clearTimeout(session.maxTimeout);
+
+  session.processor.disconnect();
+  session.source.disconnect();
+  session.stream.getTracks().forEach((track) => track.stop());
+
+  const { audioContext } = session;
+  const sampleRate = audioContext.sampleRate;
+  await audioContext.close();
+
+  const merged = flattenChunks(session.chunks);
+  const downsampled = merged.length ? downsampleTo16k(merged, sampleRate) : null;
+  const result = { audio: downsampled, reason, fieldName: session.fieldName };
+
+  session.resolve(result);
+  activeSession = null;
+  return session.done;
+}
+
+export async function startRecording(fieldName) {
+  if (activeSession) {
+    await stopRecording();
+  }
+
   const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
   const audioContext = new AudioContext();
   const source = audioContext.createMediaStreamSource(stream);
   const processor = audioContext.createScriptProcessor(4096, 1, 1);
   const chunks = [];
 
+  let resolve;
+  const done = new Promise((resolveDone) => {
+    resolve = resolveDone;
+  });
+
+  const session = {
+    fieldName,
+    stream,
+    audioContext,
+    source,
+    processor,
+    chunks,
+    resolve,
+    done,
+    stopped: false,
+    silenceMs: 0,
+    elapsedMs: 0,
+    maxTimeout: null
+  };
+
   processor.onaudioprocess = (event) => {
     const input = event.inputBuffer.getChannelData(0);
-    chunks.push(new Float32Array(input));
+    session.chunks.push(new Float32Array(input));
+    const bufferMs = (input.length / audioContext.sampleRate) * 1000;
+    session.elapsedMs += bufferMs;
+
+    const rms = getRms(input);
+    if (rms < SILENCE_THRESHOLD) {
+      session.silenceMs += bufferMs;
+    } else {
+      session.silenceMs = 0;
+    }
+
+    if (session.elapsedMs > MIN_DURATION_MS && session.silenceMs >= SILENCE_TIMEOUT_MS) {
+      finalizeSession(session, 'silence-timeout');
+    }
   };
 
   source.connect(processor);
   processor.connect(audioContext.destination);
 
-  const durationMs =
-    MIN_DURATION_MS + Math.floor(Math.random() * (MAX_DURATION_MS - MIN_DURATION_MS));
-  await sleep(durationMs);
+  session.maxTimeout = setTimeout(() => {
+    finalizeSession(session, 'max-duration');
+  }, MAX_DURATION_MS);
 
-  processor.disconnect();
-  source.disconnect();
-  stream.getTracks().forEach((track) => track.stop());
-  await audioContext.close();
+  activeSession = session;
+  return done;
+}
 
-  const merged = flattenChunks(chunks);
-  const downsampled = downsampleTo16k(merged, audioContext.sampleRate);
-
-  // Intentional hostility: randomly shave off leading/trailing audio.
-  return trimHostileEdges(downsampled);
+export async function stopRecording() {
+  if (!activeSession) {
+    return null;
+  }
+  return finalizeSession(activeSession, 'manual-stop');
 }

@@ -1,103 +1,147 @@
-import { recordClip } from './mic.js';
+import { startRecording, stopRecording } from './mic.js';
 import { transcribeAudio } from './whisper.js';
 import { login, signup } from './auth.js';
 import { mutateCredential } from './llm.js';
+import { setState, state, subscribe } from './state.js';
 
 const signupButton = document.getElementById('signup-button');
 const loginButton = document.getElementById('login-button');
-const transcriptEl = document.getElementById('transcript');
-const mutationEl = document.getElementById('mutation');
 const statusEl = document.getElementById('status');
 
-function updateDisplay({ transcript, mutation, status }) {
-  transcriptEl.textContent = transcript ?? '...';
-  mutationEl.textContent = mutation ?? '...';
-  statusEl.textContent = status ?? '...';
+const fieldElements = {
+  username: {
+    input: document.getElementById('username'),
+    transcript: document.getElementById('username-transcript'),
+    mutation: document.getElementById('username-mutation'),
+    button: document.querySelector('button[data-field="username"]'),
+    indicator: document.getElementById('username-indicator'),
+    transcriptValue: '',
+    mutationValue: '',
+    token: 0
+  },
+  password: {
+    input: document.getElementById('password'),
+    transcript: document.getElementById('password-transcript'),
+    mutation: document.getElementById('password-mutation'),
+    button: document.querySelector('button[data-field="password"]'),
+    indicator: document.getElementById('password-indicator'),
+    transcriptValue: '',
+    mutationValue: '',
+    token: 0
+  }
+};
+
+function setStatus(message) {
+  statusEl.textContent = message;
 }
 
-async function captureStep(label) {
-  updateDisplay({
-    status: `Recording ${label}...`,
-    transcript: '',
-    mutation: ''
-  });
+function setFieldValues(fieldName, { transcript, mutation }) {
+  const field = fieldElements[fieldName];
+  if (typeof transcript === 'string') {
+    field.transcriptValue = transcript;
+    field.input.value = transcript;
+    field.transcript.textContent = transcript || '...';
+  }
+  if (typeof mutation === 'string') {
+    field.mutationValue = mutation;
+    field.mutation.textContent = mutation || '...';
+  }
+}
 
-  const audio = await recordClip();
+function renderState(currentState) {
+  for (const [fieldName, field] of Object.entries(fieldElements)) {
+    const isActive = currentState.listening && currentState.activeField === fieldName;
+    field.button.textContent = isActive ? 'Stop Listening' : 'Voice Input';
+    field.indicator.hidden = !isActive;
+  }
+}
 
-  updateDisplay({
-    status: `Transcribing ${label}...`,
-    transcript: '',
-    mutation: ''
-  });
+subscribe(renderState);
 
-  const transcript = await transcribeAudio(audio, 16000);
-  if (!transcript) {
-    updateDisplay({
-      status: `No transcript for ${label}.`,
-      transcript: '',
-      mutation: ''
-    });
-    return null;
+async function handleVoiceToggle(fieldName) {
+  const field = fieldElements[fieldName];
+  field.token += 1;
+  const token = field.token;
+
+  if (state.listening && state.activeField === fieldName) {
+    setStatus(`Listening stopped for ${fieldName}.`);
+    await stopRecording();
+    return;
   }
 
-  updateDisplay({
-    status: `Mutating ${label}...`,
-    transcript,
-    mutation: ''
-  });
+  setStatus(`Listening for ${fieldName}.`);
+  setState({ activeField: fieldName, listening: true });
 
+  const recordPromise = startRecording(fieldName);
+  const result = await recordPromise;
+  if (field.token !== token) {
+    return;
+  }
+
+  if (state.activeField === fieldName) {
+    setState({ activeField: null, listening: false });
+  }
+
+  if (!result?.audio) {
+    setStatus(`No audio captured for ${fieldName}.`);
+    setFieldValues(fieldName, { transcript: '', mutation: '' });
+    return;
+  }
+
+  setStatus(`Transcribing ${fieldName}.`);
+  const transcript = await transcribeAudio(result.audio, 16000);
+  if (field.token !== token) {
+    return;
+  }
+  if (!transcript) {
+    setStatus(`No transcript available for ${fieldName}.`);
+    setFieldValues(fieldName, { transcript: '', mutation: '' });
+    return;
+  }
+
+  setFieldValues(fieldName, { transcript, mutation: '' });
+  setStatus(`Interpreting ${fieldName}.`);
   const mutation = await mutateCredential(transcript);
-
-  updateDisplay({
-    status: `${label} captured.`,
-    transcript,
-    mutation
-  });
-
-  return { transcript, mutation };
+  if (field.token !== token) {
+    return;
+  }
+  setFieldValues(fieldName, { mutation });
+  setStatus(`${fieldName} ready.`);
 }
 
 async function handleSignup() {
-  const username = await captureStep('username');
-  if (!username) return;
-  const password = await captureStep('password');
-  if (!password) return;
-
-  updateDisplay({ status: 'Storing credentials...' });
+  if (!fieldElements.username.transcriptValue || !fieldElements.password.transcriptValue) {
+    setStatus('Voice input required for username and password.');
+    return;
+  }
+  setStatus('Storing credentials.');
   const result = await signup({
-    usernameTranscript: username.transcript,
-    passwordTranscript: password.transcript,
-    usernameMutation: username.mutation,
-    passwordMutation: password.mutation
+    usernameTranscript: fieldElements.username.transcriptValue,
+    passwordTranscript: fieldElements.password.transcriptValue,
+    usernameMutation: fieldElements.username.mutationValue,
+    passwordMutation: fieldElements.password.mutationValue
   });
-  updateDisplay({
-    transcript: `username: ${username.transcript}\npassword: ${password.transcript}`,
-    mutation: `username: ${result.username}\npassword: ${result.password}`,
-    status: 'Signup stored. No confirmation beyond this line.'
-  });
+  setStatus(`Account stored. Username: ${result.username}. Password: ${result.password}.`);
 }
 
 async function handleLogin() {
-  const username = await captureStep('username');
-  if (!username) return;
-  const password = await captureStep('password');
-  if (!password) return;
-
-  updateDisplay({ status: 'Checking credentials...' });
+  if (!fieldElements.username.transcriptValue || !fieldElements.password.transcriptValue) {
+    setStatus('Voice input required for username and password.');
+    return;
+  }
+  setStatus('Checking credentials.');
   const result = await login({
-    usernameTranscript: username.transcript,
-    passwordTranscript: password.transcript,
-    usernameMutation: username.mutation,
-    passwordMutation: password.mutation
+    usernameTranscript: fieldElements.username.transcriptValue,
+    passwordTranscript: fieldElements.password.transcriptValue,
+    usernameMutation: fieldElements.username.mutationValue,
+    passwordMutation: fieldElements.password.mutationValue
   });
-  updateDisplay({
-    transcript: `username: ${username.transcript}\npassword: ${password.transcript}`,
-    mutation: `username: ${result.username}\npassword: ${result.password}`,
-    status: result.matches ? 'Login accepted.' : 'Login rejected.'
-  });
+  setStatus(result.matches ? 'Login accepted.' : 'Login rejected.');
 }
 
+fieldElements.username.button.addEventListener('click', () => handleVoiceToggle('username'));
+fieldElements.password.button.addEventListener('click', () => handleVoiceToggle('password'));
 signupButton.addEventListener('click', handleSignup);
 loginButton.addEventListener('click', handleLogin);
 
-// Explicitly avoids helpful UX: no retries, no hints, no progressive feedback.
+// Explicitly avoids helpful UX: no retries, no hints, no correction paths.
