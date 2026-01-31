@@ -8,6 +8,7 @@
   <body>
     <h1>Voice-Only Authentication</h1>
     <p>This system intentionally misinterprets speech.</p>
+    <p>This system uses local machine transcription and will mishear you.</p>
     <p>Clearing browser storage deletes your account.</p>
     <button id="signup-button" type="button">Sign Up</button>
     <button id="login-button" type="button">Log In</button>
@@ -21,6 +22,15 @@
     <h2>Status</h2>
     <pre id="status" aria-live="polite"></pre>
 
-    <script type="module" src="./ui.js"></script>
+    <script type="importmap">
+      {
+        "imports": {
+          "@xenova/transformers": "https://esm.sh/@xenova/transformers@2.17.2"
+        }
+      }
+    </script>
+    <script type="module">
+      import './ui.js';
+    </script>
   </body>
 </html>

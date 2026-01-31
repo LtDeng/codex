@@ -5,6 +5,7 @@ const requiredFiles = [
   'client/index.html',
   'client/ui.js',
   'client/mic.js',
+  'client/whisper.js',
   'client/llm.js',
   'client/db.js',
   'client/auth.js',

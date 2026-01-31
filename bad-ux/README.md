@@ -36,6 +36,14 @@ There is no authoritative server. Interpretation happens locally. Failure cannot
 
 WebLLM is used for local inference. Nondeterminism is visible. Mutation rules are disclosed, but outcomes are not guaranteed. The system prompt enforces bounded inconsistency and small edit distance mutations.
 
+## Local Speech Recognition
+
+Whisper WASM runs via transformers.js entirely in the browser. No speech data leaves the device. Errors and misrecognitions are intentional, and the smaller model is selected to increase distortion.
+
+## Why Small Models
+
+Lower accuracy creates more hostile UX while keeping the distortion bounded. Faster load times keep the PoC usable. Failures are visible, repeatable, and still painful.
+
 ## Storage Model
 
 IndexedDB stores interpreted credentials. Human intent is never stored. Clearing browser storage deletes identity and resets the machine’s memory of you.
