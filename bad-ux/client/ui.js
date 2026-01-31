@@ -1,5 +1,7 @@
-import { captureTranscript } from './mic.js';
+import { recordClip } from './mic.js';
+import { transcribeAudio } from './whisper.js';
 import { login, signup } from './auth.js';
+import { mutateCredential } from './llm.js';
 
 const signupButton = document.getElementById('signup-button');
 const loginButton = document.getElementById('login-button');
@@ -15,47 +17,81 @@ function updateDisplay({ transcript, mutation, status }) {
 
 async function captureStep(label) {
   updateDisplay({
-    status: `Listening for ${label}...`,
+    status: `Recording ${label}...`,
     transcript: '',
     mutation: ''
   });
-  const result = await captureTranscript();
-  if (result.note) {
+
+  const audio = await recordClip();
+
+  updateDisplay({
+    status: `Transcribing ${label}...`,
+    transcript: '',
+    mutation: ''
+  });
+
+  const transcript = await transcribeAudio(audio, 16000);
+  if (!transcript) {
     updateDisplay({
-      status: result.note,
+      status: `No transcript for ${label}.`,
       transcript: '',
       mutation: ''
     });
     return null;
   }
-  return result.transcript;
+
+  updateDisplay({
+    status: `Mutating ${label}...`,
+    transcript,
+    mutation: ''
+  });
+
+  const mutation = await mutateCredential(transcript);
+
+  updateDisplay({
+    status: `${label} captured.`,
+    transcript,
+    mutation
+  });
+
+  return { transcript, mutation };
 }
 
 async function handleSignup() {
-  const usernameTranscript = await captureStep('username');
-  if (!usernameTranscript) return;
-  const passwordTranscript = await captureStep('password');
-  if (!passwordTranscript) return;
+  const username = await captureStep('username');
+  if (!username) return;
+  const password = await captureStep('password');
+  if (!password) return;
 
-  updateDisplay({ status: 'Mutating and storing credentials...' });
-  const result = await signup({ usernameTranscript, passwordTranscript });
+  updateDisplay({ status: 'Storing credentials...' });
+  const result = await signup({
+    usernameTranscript: username.transcript,
+    passwordTranscript: password.transcript,
+    usernameMutation: username.mutation,
+    passwordMutation: password.mutation
+  });
   updateDisplay({
-    transcript: `username: ${usernameTranscript}\npassword: ${passwordTranscript}`,
+    transcript: `username: ${username.transcript}\npassword: ${password.transcript}`,
     mutation: `username: ${result.username}\npassword: ${result.password}`,
     status: 'Signup stored. No confirmation beyond this line.'
   });
 }
 
 async function handleLogin() {
-  const usernameTranscript = await captureStep('username');
-  if (!usernameTranscript) return;
-  const passwordTranscript = await captureStep('password');
-  if (!passwordTranscript) return;
+  const username = await captureStep('username');
+  if (!username) return;
+  const password = await captureStep('password');
+  if (!password) return;
 
-  updateDisplay({ status: 'Mutating and checking credentials...' });
-  const result = await login({ usernameTranscript, passwordTranscript });
+  updateDisplay({ status: 'Checking credentials...' });
+  const result = await login({
+    usernameTranscript: username.transcript,
+    passwordTranscript: password.transcript,
+    usernameMutation: username.mutation,
+    passwordMutation: password.mutation
+  });
   updateDisplay({
-    transcript: `username: ${usernameTranscript}\npassword: ${passwordTranscript}`,
+    transcript: `username: ${username.transcript}\npassword: ${password.transcript}`,
     mutation: `username: ${result.username}\npassword: ${result.password}`,
     status: result.matches ? 'Login accepted.' : 'Login rejected.'
   });
