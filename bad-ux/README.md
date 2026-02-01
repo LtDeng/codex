@@ -46,7 +46,7 @@ WebLLM is used for local inference. Nondeterminism is visible. Mutation rules ar
 
 ## Local Speech Recognition
 
-Whisper WASM runs via transformers.js entirely in the browser. No speech data leaves the device. Errors and misrecognitions are intentional, and the smaller model is selected to increase distortion.
+Whisper.cpp runs as a browser-only WASM build loaded from `client/whisper/`. No bundler or Node polyfills are required, so the project stays GitHub Pages compatible and static-hosting friendly. The smallest `ggml-tiny.en` model is loaded from `client/whisper/models/` to keep performance high while intentionally increasing misrecognition.
 
 Microphone capture uses MediaRecorder instead of deprecated ScriptProcessorNode APIs. Capture is intentionally clip-based, and real-time streaming is avoided by design.
 

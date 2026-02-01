@@ -1,5 +1,5 @@
 import { blobToFloat32, startRecording, stopRecording } from './mic.js';
-import { transcribeAudio } from './whisper.js';
+import { loadWhisper, transcribeFloat32 } from './whisper-runner.js';
 import { login, signup } from './auth.js';
 import { mutateCredential } from './llm.js';
 import { setState, state, subscribe } from './state.js';
@@ -96,7 +96,14 @@ async function handleVoiceToggle(fieldName) {
     setFieldValues(fieldName, { transcript: '', mutation: '' });
     return;
   }
-  const transcript = await transcribeAudio(float32Audio, 16000);
+  try {
+    await loadWhisper();
+  } catch (error) {
+    setStatus(`Whisper failed to load for ${fieldName}.`);
+    setFieldValues(fieldName, { transcript: '', mutation: '' });
+    return;
+  }
+  const transcript = await transcribeFloat32(float32Audio);
   if (field.token !== token) {
     return;
   }
