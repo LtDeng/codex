@@ -1,0 +1,24 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-bg: 225 28% 7%;
+  --color-surface: 224 24% 12%;
+  --color-text: 220 30% 92%;
+  --color-muted: 217 15% 63%;
+  --color-accent: 192 96% 56%;
+  --color-danger: 0 84% 60%;
+  --color-success: 140 70% 45%;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+  background: hsl(var(--color-bg));
+  color: hsl(var(--color-text));
+}
